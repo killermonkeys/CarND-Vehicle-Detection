@@ -2,12 +2,17 @@ import numpy as np
 import matplotlib.image as mpimg
 import cv2
 import vehicle_detect
+# Import everything needed to edit/save/watch video clips
+from moviepy.editor import VideoFileClip
+import multiprocessing as mp 
+from scipy.ndimage.measurements import label
+from moviepy.editor import VideoClip
 
 # detect windows in frames, returns windows list 
 # this is used as a map on frames, so doesn't need to know about start_s and end_s
 def detect_frame(image):
     image = image.astype(np.float32)/255
-    hot_windows = detect_multiScale(image, clf, X_scaler, ystart=400, ystop=None,
+    hot_windows = vehicle_detect.detect_multiScale(image, clf, X_scaler, ystart=400, ystop=None,
                         color_space=color_space, start_scale=1.3, scale=1.3, max_layers=5,
                         spatial_size=spatial_size, hist_bins=hist_bins, 
                         orient=orient, pix_per_cell=pix_per_cell, 
@@ -32,14 +37,14 @@ def make_frame(t):
       hot_window.extend(windows[frame_no-i])
     
     # Add heat to each box in box list
-    heat = add_heat(heat,hot_window)
+    heat = vehicle_detect.add_heat(heat,hot_window)
     # Apply threshold to help remove false positives
-    heat = apply_threshold(heat,2)
+    heat = vehicle_detect.apply_threshold(heat,2)
     # Visualize the heatmap when displaying    
     heatmap = np.clip(heat, 0, 255)
     # Find final boxes from heatmap using label function
     labels = label(heatmap)
-    draw_img = draw_labeled_bboxes(image, labels)
+    draw_img = vehicle_detect.draw_labeled_bboxes(image, labels)
     return draw_img
     
 
@@ -64,15 +69,9 @@ hog_feat = True # HOG features on or off
 
 
     
-# Import everything needed to edit/save/watch video clips
-from moviepy.editor import VideoFileClip
 
 project_video = 'project_video.mp4'
 output_video = project_video.split('.')[0] + '_output.mp4'
-
-import multiprocessing as mp 
-from scipy.ndimage.measurements import label
-from moviepy.editor import VideoClip
 
 #These values are globals (lazy) to make it easy to debug frame extraction and generation
 clip1 = VideoFileClip(project_video)
