@@ -2,7 +2,8 @@ import numpy as np
 import matplotlib.image as mpimg
 import cv2
 import vehicle_detect
-# Import everything needed to edit/save/watch video clips
+import lanes_detect
+
 from moviepy.editor import VideoFileClip
 import multiprocessing as mp 
 from scipy.ndimage.measurements import label
@@ -10,7 +11,7 @@ from moviepy.editor import VideoClip
 
 # detect windows in frames, returns windows list 
 # this is used as a map on frames, so doesn't need to know about start_s and end_s
-def detect_frame(image):
+def detect_vehicles_in_frame(image):
     image = image.astype(np.float32)/255
     hot_windows = vehicle_detect.detect_multiScale(image, clf, X_scaler, ystart=400, ystop=None,
                         color_space=color_space, start_scale=1.3, scale=1.3, max_layers=5,
@@ -20,7 +21,20 @@ def detect_frame(image):
                         hog_channel=hog_channel, spatial_feat=spatial_feat, 
                         hist_feat=hist_feat, hog_feat=hog_feat)
     
+    print('.', end='', flush=True)
     return hot_windows
+
+
+# get distortion constants to transform frames
+import pickle
+dist_pickle = pickle.load( open("dist.pickle", "rb" ) )
+mtx = dist_pickle["mtx"]
+dist = dist_pickle["dist"]
+
+# wraps arguments for lane detection
+def detect_lanes_in_frame(image):
+    print(',', end='', flush=True)
+    return lanes_detect.find_lanes(image, mtx, dist)
     
 # used as a generator for frames, needs to know about start_s and end_s (t+start_s becomes an offset)
 def make_frame(t):
@@ -45,6 +59,7 @@ def make_frame(t):
     # Find final boxes from heatmap using label function
     labels = label(heatmap)
     draw_img = vehicle_detect.draw_labeled_bboxes(image, labels)
+    draw_img = lanes_detect.draw_lines(draw_img, lines[frame_no][0], lines[frame_no][1])
     return draw_img
     
 
@@ -67,25 +82,33 @@ hist_feat = True # Histogram features on or off
 hog_feat = True # HOG features on or off
 
 
-
-    
-
+# video... yes I could take this as args but lazy
 project_video = 'project_video.mp4'
 output_video = project_video.split('.')[0] + '_output.mp4'
 
-#These values are globals (lazy) to make it easy to debug frame extraction and generation
+#These values are globals to make it easy to debug frame extraction and generation
 clip1 = VideoFileClip(project_video)
 start_s = 0
 end_s = clip1.duration
-#clip1 = clip1.subclip(start_s,end_s)
+clip1 = clip1.subclip(start_s,end_s)
 
-
-pool = mp.Pool(processes=6)
-windows = pool.map(detect_frame, clip1.iter_frames())
-pool.close()
-pool.join()
-pool = None
-print('detection step complete. ', len(windows), ' windows found')
-
-clip_out = VideoClip(make_frame, duration=(end_s-start_s)) # 2 seconds
-clip_out.write_videofile(output_video,fps=clip1.fps, threads=4)
+if __name__ == '__main__':
+    #get the windows
+    with mp.Pool(processes=7) as pool:     
+        windows = pool.map(detect_vehicles_in_frame, clip1.iter_frames())
+        pool.close()
+        pool.join()
+        pool.terminate()
+    #windows_result = pool.map_async(detect_vehicles_in_frame, clip1.iter_frames())
+    #windows = windows_result.get()
+    print('detection step complete. ', len(windows), ' windows found')
+    
+    lines = []
+    for frame in clip1.iter_frames():
+        lines.append(detect_lanes_in_frame(frame))
+    print('lines: ', len(lines))
+    
+    lanes_detect.find_best_lines(lines,1280,720)
+    print('best lines complete.')
+    clip_out = VideoClip(make_frame, duration=(end_s-start_s)) 
+    clip_out.write_videofile(output_video,fps=clip1.fps, threads=4)
