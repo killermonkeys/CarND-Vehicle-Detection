@@ -90,7 +90,7 @@ The majority of the work I did to optimize the classifer was to parallelize the 
 #### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (somewhat wobbly or unstable bounding boxes are ok as long as you are identifying the vehicles most of the time with minimal false positives.)
 My pipeline code is in detect_pipeline.py, this integrates the lane detection and vehicle detection code, and is parallelized. 
 
-Here's a [link to my video result](./project_video.mp4)
+Here's a [link to my video result](./project_video_output.mp4)
 
 I have no false positives, although I do occasionally detect vehicles in the oncoming traffic, these are not false. I also see false negatives at the frame edges as discussed. It takes roughly 3 minutes to generate the video on my machine. This is obviously post-processed, so streaming frames would be a different task.
 
